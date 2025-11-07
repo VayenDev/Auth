@@ -15,7 +15,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package src
+package data
 
 import (
 	"src/crypto"
@@ -25,12 +25,12 @@ import (
 )
 
 type Session struct {
-	UUID     uuid.UUID
-	MacKey   [crypto.MacKeySize]byte // HMAC SHA 256
-	CreateAt int64
-	ValidFor time.Duration
+	UUID      uuid.UUID
+	MacKey    [crypto.MacKeySize]byte // HMAC SHA 256
+	CreatedAt int64
+	ValidFor  time.Duration
 }
 
 func (session Session) Expired() bool {
-	return time.Now().Unix()-session.CreateAt > int64(session.ValidFor)
+	return time.Now().Unix()-session.CreatedAt > int64(session.ValidFor)
 }

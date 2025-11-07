@@ -15,11 +15,12 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package src
+package files
 
 import (
 	"errors"
 	"os"
+	"src/other"
 	"strings"
 	"time"
 
@@ -27,14 +28,11 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const DefaultSecretHostKey = "<change required, otherwise Vayen Auth can be compromised!>"
-
 type Config struct {
-	Database               DatabaseConfig
-	Session                SessionConfig
-	TLS                    TLSConfig
-	Port                   int
-	InternalHostsSecretKey string
+	Database DatabaseConfig
+	Session  SessionConfig
+	TLS      TLSConfig
+	Port     int
 }
 
 type DatabaseConfig struct {
@@ -52,33 +50,34 @@ type SessionConfig struct {
 }
 
 type TLSConfig struct {
+	Enabled  bool
 	CertFile string
 	KeyFile  string
 }
 
-func SaveDefaultConfig() error {
-	config := Config{
-		Database: DatabaseConfig{
-			Host:     "localhost",
-			Port:     5432,
-			Name:     "<change this to your database name>",
-			Username: "<change this to your database username>",
-			Password: "<change this to your database password>",
-		},
-		Session: SessionConfig{
-			ValidFor:           15 * time.Minute,
-			CacheClearInterval: 10 * time.Minute,
-			CacheSize:          32 * MiB,
-		},
-		TLS: TLSConfig{
-			CertFile: "",
-			KeyFile:  "",
-		},
-		Port:                   8080,
-		InternalHostsSecretKey: DefaultSecretHostKey,
-	}
+var DefaultConfig = Config{
+	Database: DatabaseConfig{
+		Host:     "localhost",
+		Port:     5432,
+		Name:     "<change this to your database name>",
+		Username: "<change this to your database username>",
+		Password: "<change this to your database password>",
+	},
+	Session: SessionConfig{
+		ValidFor:           15 * time.Minute,
+		CacheClearInterval: 10 * time.Minute,
+		CacheSize:          32 * other.MiB,
+	},
+	TLS: TLSConfig{
+		Enabled:  false,
+		CertFile: "",
+		KeyFile:  "",
+	},
+	Port: 8080,
+}
 
-	err := config.Save()
+func SaveDefaultConfig(configFilePath string) error {
+	err := DefaultConfig.Save(configFilePath)
 	if err != nil {
 		return err
 	}
@@ -86,13 +85,13 @@ func SaveDefaultConfig() error {
 	return nil
 }
 
-func (config Config) Save() error {
+func (config Config) Save(configFilePath string) error {
 	marshal, err := yaml.Marshal(config)
 	if err != nil {
 		return err
 	}
 
-	err = os.WriteFile(ConfigFilePath, marshal, 0644)
+	err = os.WriteFile(configFilePath, marshal, 0644)
 	if err != nil {
 		return err
 	}
@@ -101,15 +100,12 @@ func (config Config) Save() error {
 }
 
 func (config Config) Validate() error {
-	// Normal config validation
+	// Normal files validation
 	if config.Port == 0 {
 		return errors.New("port is required")
 	}
-	if strings.TrimSpace(config.InternalHostsSecretKey) == "" {
-		return errors.New("internal hosts secret key is required")
-	}
 
-	// Database config validation
+	// Database files validation
 	if strings.TrimSpace(config.Database.Host) == "" {
 		return errors.New("database host is required")
 	}
@@ -135,7 +131,7 @@ func (config Config) Validate() error {
 		return errors.New("database password must be changed, it cannot be the default")
 	}
 
-	// Session config validation
+	// Session files validation
 	if config.Session.ValidFor == 0 {
 		return errors.New("duration length for a session validity is required")
 	}
@@ -143,7 +139,10 @@ func (config Config) Validate() error {
 		return errors.New("duration length for clearing the session cache is required")
 	}
 
-	// TLS config validation
+	// TLS files validation
+	if !config.TLS.Enabled {
+		log.Warn().Msg("TLS is disabled, we recommend using TLS for security reasons")
+	}
 	if strings.TrimSpace(config.TLS.CertFile) == "" {
 		log.Warn().Msg("TLS certificate file is empty, we recommend using a certificate for security reasons so that the server can use TLS")
 	}
@@ -154,8 +153,8 @@ func (config Config) Validate() error {
 	return nil
 }
 
-func ReadConfig() (Config, error) {
-	file, err := os.ReadFile(ConfigFilePath)
+func ReadConfig(configFilePath string) (Config, error) {
+	file, err := os.ReadFile(configFilePath)
 	if err != nil {
 
 		return Config{}, err

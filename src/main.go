@@ -22,13 +22,19 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"src/data"
+	"src/files"
+	"src/route"
+	"src/service"
+	"strings"
 
 	"github.com/dgraph-io/ristretto/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
-const ConfigFilePath = "./config.yml"
+const ConfigFilePath = "./files.yml"
 
 var ServerAddress string
 
@@ -36,21 +42,31 @@ func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 
 	fmt.Println("Starting Vayen Auth")
-	fmt.Println("Loading config...")
+	fmt.Println("Loading files...")
 
-	// Check if config file exists, if not save the default config file
+	// Check if the files file exists, if not, save the default files file
 	if _, err := os.Stat(ConfigFilePath); os.IsNotExist(err) {
-		fmt.Println("Config file not found, creating default config file...")
-		err := SaveDefaultConfig()
+		fmt.Println("Config file not found, creating default files file...")
+		err := files.SaveDefaultConfig(ConfigFilePath)
 		if err != nil {
 			return
 		}
 		os.Exit(1)
 	}
 
-	config, err := ReadConfig()
+	config, err := files.ReadConfig(ConfigFilePath)
 	if err != nil {
 		panic(err)
+	}
+	if config == files.DefaultConfig {
+		log.Error().Msg("Config file cannot be the default files file, please edit the files file and try again!")
+		os.Exit(1)
+	}
+	err = config.Validate()
+	if err != nil {
+		log.Error().Msg("Config file is invalid, please edit the files file and try again!")
+		log.Err(err)
+		os.Exit(1)
 	}
 	ServerAddress = fmt.Sprintf("localhost:%d", config.Port)
 
@@ -62,7 +78,7 @@ func main() {
 	defer connection.Close(context.Background())
 
 	fmt.Println("Creating Session Cache...")
-	cache, err := ristretto.NewCache(&ristretto.Config[[]byte, Session]{
+	cache, err := ristretto.NewCache(&ristretto.Config[[]byte, data.Session]{
 		NumCounters: 1e7,
 		MaxCost:     1 << 30,
 		BufferItems: 64,
@@ -73,13 +89,37 @@ func main() {
 	}
 	defer cache.Close()
 
+	fmt.Println("Registering routes...")
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /session/create", route.HandleSessionCreate)
+	mux.HandleFunc("GET /session/valid", route.HandleSessionValid)
+	mux.HandleFunc("GET /session/expired", route.HandleSessionExpired)
+	mux.HandleFunc("DELETE /session/invalidate", route.HandleSessionInvalidate)
+
+	var finalHandler http.Handler = mux
+	finalHandler = route.SessionMiddleware(
+		config,
+		service.SessionServiceSetup{
+			Database:  connection,
+			DBContext: context.Background(),
+			Cache:     cache,
+		}, finalHandler)
+
 	fmt.Printf("Starting server on %s ...\n", ServerAddress)
-	err = http.ListenAndServe(ServerAddress, nil)
+	if config.TLS.Enabled {
+		if strings.TrimSpace(config.TLS.CertFile) == "" || strings.TrimSpace(config.TLS.KeyFile) == "" {
+			log.Error().Msg("TLS certificate file or key file path is empty, please edit the file paths and try again!")
+			os.Exit(1)
+		}
+		err = http.ListenAndServeTLS(ServerAddress, config.TLS.CertFile, config.TLS.KeyFile, finalHandler)
+	} else {
+		err = http.ListenAndServe(ServerAddress, finalHandler)
+	}
 	if err != nil {
 		panic(err)
 	}
 }
 
-func buildDatabaseURL(config DatabaseConfig) string {
+func buildDatabaseURL(config files.DatabaseConfig) string {
 	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s", config.Username, config.Password, config.Host, config.Port, config.Name)
 }

@@ -21,8 +21,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"src"
 	"src/crypto"
+	"src/data"
 	"strings"
 	"time"
 
@@ -35,7 +35,7 @@ import (
 type SessionServiceSetup struct {
 	Database  *pgx.Conn
 	DBContext context.Context
-	Cache     *ristretto.Cache[[]byte, src.Session]
+	Cache     *ristretto.Cache[[]byte, data.Session]
 }
 
 func (setup SessionServiceSetup) Validate() error {
@@ -48,55 +48,71 @@ func (setup SessionServiceSetup) Validate() error {
 	return nil
 }
 
-func GetSession(setup SessionServiceSetup, uuid uuid.UUID) (src.Session, error) {
+func GetSession(setup SessionServiceSetup, uuid uuid.UUID) (data.Session, error) {
 	err := setup.Validate()
 	if err != nil {
-		return src.Session{}, err
+		return data.Session{}, err
 	}
 
 	if value, found := setup.Cache.Get(uuid[:]); found {
 		return value, nil
 	}
 
-	query := "SELECT * FROM sessions WHERE uuid = $1"
+	const query = "SELECT * FROM sessions WHERE uuid = $1"
 
-	var session src.Session
+	var session data.Session
 	err = setup.Database.QueryRow(setup.DBContext, query, uuid).Scan(&session)
 	if err != nil {
-		return src.Session{}, err
+		return data.Session{}, err
 	}
 
 	if session.Expired() {
-		return src.Session{}, errors.New("session expired")
+		return data.Session{}, errors.New("session expired")
 	}
 
 	return session, nil
 }
 
-func CreateSession(setup SessionServiceSetup, validFor time.Duration) (src.Session, []byte, error) {
+func GetSessionMACKey(setup SessionServiceSetup, uuid uuid.UUID) ([crypto.MacKeySize]byte, error) {
 	err := setup.Validate()
 	if err != nil {
-		return src.Session{}, nil, err
+		return [crypto.MacKeySize]byte{}, err
+	}
+
+	query := "SELECT mac_key FROM sessions WHERE uuid = $1"
+	var macKey [crypto.MacKeySize]byte
+	err = setup.Database.QueryRow(setup.DBContext, query, uuid).Scan(&macKey)
+	if err != nil {
+		return [crypto.MacKeySize]byte{}, err
+	}
+
+	return macKey, nil
+}
+
+func CreateSession(setup SessionServiceSetup, validFor time.Duration) (data.Session, []byte, error) {
+	err := setup.Validate()
+	if err != nil {
+		return data.Session{}, nil, err
 	}
 
 	key, err := crypto.NewMACKey()
 	if err != nil {
-		return src.Session{}, nil, err
+		return data.Session{}, nil, err
 	}
 	generatedUUID := uuid.New()
 	mac := crypto.ComputeMAC([]byte(fmt.Sprintf("%s:%d", generatedUUID, validFor)), key)
 
-	session := src.Session{
-		UUID:     generatedUUID,
-		MacKey:   [crypto.MacKeySize]byte(key),
-		CreateAt: time.Now().Unix(),
-		ValidFor: validFor,
+	session := data.Session{
+		UUID:      generatedUUID,
+		MacKey:    [crypto.MacKeySize]byte(key),
+		CreatedAt: time.Now().Unix(),
+		ValidFor:  validFor,
 	}
 
 	query := "INSERT INTO sessions (uuid, mac_key, create_at, valid_for) VALUES ($1, $2, $3, $4)"
-	_, err = setup.Database.Exec(setup.DBContext, query, session.UUID, session.MacKey, session.CreateAt, session.ValidFor)
+	_, err = setup.Database.Exec(setup.DBContext, query, session.UUID, session.MacKey, session.CreatedAt, session.ValidFor)
 	if err != nil {
-		return src.Session{}, nil, err
+		return data.Session{}, nil, err
 	}
 
 	cost := int64(16 + crypto.MacKeySize + 8 + 8)
@@ -128,7 +144,7 @@ func SplitUUIDAndMAC(uuidAndMac string) (uuid.UUID, [crypto.MacKeySize]byte, err
 		return uuid.Nil, [crypto.MacKeySize]byte{}, errors.New("invalid uuid and mac")
 	}
 
-	parsedUUID, err := uuid.Parse(result[0])
+	parsedUUID, err := uuid.Parse(strings.TrimPrefix(result[0], "VA:"))
 	if err != nil {
 		return uuid.Nil, [crypto.MacKeySize]byte{}, err
 	}

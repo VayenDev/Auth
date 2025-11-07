@@ -1,5 +1,5 @@
 /*
- * Auth: datasizes.go
+ * Auth: context.go
  * Copyright (C) 2025 mtctx
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,13 +15,6 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package src
+package route
 
-const (
-	KiB = 1 << 10
-	MiB = 1 << 20
-	GiB = 1 << 30
-	TiB = 1 << 40
-	PiB = 1 << 50
-	EiB = 1 << 60
-)
+type contextKey string
