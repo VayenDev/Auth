@@ -89,7 +89,7 @@ func GetSessionMACKey(setup SessionServiceSetup, uuid uuid.UUID) ([crypto.MacKey
 	return macKey, nil
 }
 
-func CreateSession(setup SessionServiceSetup, validFor time.Duration) (data.Session, []byte, error) {
+func CreateSession(setup SessionServiceSetup, ownerUUID uuid.UUID, validFor time.Duration) (data.Session, []byte, error) {
 	err := setup.Validate()
 	if err != nil {
 		return data.Session{}, nil, err
@@ -109,14 +109,13 @@ func CreateSession(setup SessionServiceSetup, validFor time.Duration) (data.Sess
 		ValidFor:  validFor,
 	}
 
-	query := "INSERT INTO sessions (uuid, mac_key, create_at, valid_for) VALUES ($1, $2, $3, $4)"
-	_, err = setup.Database.Exec(setup.DBContext, query, session.UUID, session.MacKey, session.CreatedAt, session.ValidFor)
+	query := "INSERT INTO sessions (uuid, user_uuid, mac_key, create_at, valid_for) VALUES ($1, $2, $3, $4)"
+	_, err = setup.Database.Exec(setup.DBContext, query, session.UUID, ownerUUID, session.MacKey, session.CreatedAt, session.ValidFor)
 	if err != nil {
 		return data.Session{}, nil, err
 	}
 
-	cost := int64(16 + crypto.MacKeySize + 8 + 8)
-	added := setup.Cache.Set(generatedUUID[:], session, cost)
+	added := setup.Cache.Set(generatedUUID[:], session, data.SessionCost)
 	if !added {
 		log.Error().Msg("Failed to add session to cache")
 	}

@@ -76,9 +76,13 @@ func main() {
 		panic(err)
 	}
 	defer connection.Close(context.Background())
+	err = createTables(connection)
+	if err != nil {
+		panic(err)
+	}
 
 	fmt.Println("Creating Session Cache...")
-	cache, err := ristretto.NewCache(&ristretto.Config[[]byte, data.Session]{
+	sessionCache, err := ristretto.NewCache(&ristretto.Config[[]byte, data.Session]{
 		NumCounters: 1e7,
 		MaxCost:     1 << 30,
 		BufferItems: 64,
@@ -87,14 +91,29 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer cache.Close()
+	defer sessionCache.Close()
+
+	fmt.Println("Creating Session Cache...")
+	accountCache, err := ristretto.NewCache(&ristretto.Config[[]byte, data.Account]{
+		NumCounters: 1e7,
+		MaxCost:     1 << 30,
+		BufferItems: 64,
+		Metrics:     true,
+	})
+	if err != nil {
+		panic(err)
+	}
+	defer accountCache.Close()
 
 	fmt.Println("Registering routes...")
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /session/create", route.HandleSessionCreate)
 	mux.HandleFunc("GET /session/valid", route.HandleSessionValid)
 	mux.HandleFunc("GET /session/expired", route.HandleSessionExpired)
 	mux.HandleFunc("DELETE /session/invalidate", route.HandleSessionInvalidate)
+
+	mux.HandleFunc("POST /account/login", route.HandleAccountLogin)
+	mux.HandleFunc("POST /account/register", route.HandleAccountRegister)
+	mux.HandleFunc("DELETE /account/delete", route.HandleAccountDelete)
 
 	var finalHandler http.Handler = mux
 	finalHandler = route.SessionMiddleware(
@@ -102,7 +121,12 @@ func main() {
 		service.SessionServiceSetup{
 			Database:  connection,
 			DBContext: context.Background(),
-			Cache:     cache,
+			Cache:     sessionCache,
+		},
+		service.AccountServiceSetup{
+			Database:  connection,
+			DBContext: context.Background(),
+			Cache:     accountCache,
 		}, finalHandler)
 
 	fmt.Printf("Starting server on %s ...\n", ServerAddress)
@@ -122,4 +146,16 @@ func main() {
 
 func buildDatabaseURL(config files.DatabaseConfig) string {
 	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s", config.Username, config.Password, config.Host, config.Port, config.Name)
+}
+
+func createTables(connection *pgx.Conn) error {
+	err := data.CreateAccountTable(connection)
+	if err != nil {
+		return err
+	}
+	err = data.CreateSessionTable(connection)
+	if err != nil {
+		return err
+	}
+	return nil
 }

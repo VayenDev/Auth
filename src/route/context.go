@@ -18,3 +18,14 @@
 package route
 
 type contextKey string
+
+const (
+	ConfigKey              = contextKey("config")
+	SessionServiceSetupKey = contextKey("session_service_setup")
+	AccountServiceSetupKey = contextKey("account_service_setup")
+
+	UUIDKey    = contextKey("uuid")
+	MacTagKey  = contextKey("mac_tag")
+	SessionKey = contextKey("session")
+	AccountKey = contextKey("account")
+)
