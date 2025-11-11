@@ -98,7 +98,7 @@ func SessionMiddleware(config files.Config, sessionServiceSetup service.SessionS
 			return
 		}
 
-		retrievedUUID, macTag, err := service.SplitUUIDAndMAC(authHeader)
+		retrievedUUID, _, err := service.SplitUUIDAndMAC(authHeader)
 		if err != nil {
 			http.Error(w, "Invalid authorization header", http.StatusUnauthorized)
 			log.Err(err)
@@ -112,8 +112,6 @@ func SessionMiddleware(config files.Config, sessionServiceSetup service.SessionS
 			return
 		}
 
-		ctx = context.WithValue(ctx, UUIDKey, retrievedUUID)
-		ctx = context.WithValue(ctx, MacTagKey, macTag)
 		ctx = context.WithValue(ctx, SessionKey, session)
 
 		if r.URL.Path == "/session/valid" {
@@ -137,7 +135,7 @@ func SessionMiddleware(config files.Config, sessionServiceSetup service.SessionS
 			return
 		}
 
-		ctx = context.WithValue(ctx, AccountServiceSetupKey, account)
+		ctx = context.WithValue(ctx, AccountKey, account)
 		r = r.WithContext(ctx)
 
 		next.ServeHTTP(w, r)

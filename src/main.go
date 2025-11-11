@@ -114,6 +114,7 @@ func main() {
 	mux.HandleFunc("POST /account/login", route.HandleAccountLogin)
 	mux.HandleFunc("POST /account/register", route.HandleAccountRegister)
 	mux.HandleFunc("DELETE /account/delete", route.HandleAccountDelete)
+	mux.HandleFunc("POST /account/change_password", route.HandleChangePassword)
 
 	var finalHandler http.Handler = mux
 	finalHandler = route.SessionMiddleware(
