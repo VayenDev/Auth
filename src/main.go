@@ -24,6 +24,7 @@ import (
 	"os"
 	"src/data"
 	"src/files"
+	"src/middleware"
 	"src/route"
 	"src/service"
 	"strings"
@@ -32,6 +33,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"golang.org/x/time/rate"
 )
 
 const ConfigFilePath = "./files.yml"
@@ -105,6 +107,18 @@ func main() {
 	}
 	defer accountCache.Close()
 
+	fmt.Println("Creating Rate Limit Cache...")
+	rateLimitCache, err := ristretto.NewCache(&ristretto.Config[[]byte, *rate.Limiter]{
+		NumCounters: 1e7,
+		MaxCost:     1 << 30,
+		BufferItems: 64,
+		Metrics:     true,
+	})
+	if err != nil {
+		panic(err)
+	}
+	defer rateLimitCache.Close()
+
 	fmt.Println("Registering routes...")
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /session/valid", route.HandleSessionValid)
@@ -114,10 +128,15 @@ func main() {
 	mux.HandleFunc("POST /account/login", route.HandleAccountLogin)
 	mux.HandleFunc("POST /account/register", route.HandleAccountRegister)
 	mux.HandleFunc("DELETE /account/delete", route.HandleAccountDelete)
-	mux.HandleFunc("POST /account/change_password", route.HandleChangePassword)
+	mux.HandleFunc("POST /account/change_password", route.HandleAccountChangePassword)
+	mux.HandleFunc("POST /account/logout", route.HandleAccountLogout)
 
 	var finalHandler http.Handler = mux
-	finalHandler = route.SessionMiddleware(
+	if config.RateLimit.Enabled {
+		finalHandler = middleware.RateLimitMiddleware(rateLimitCache, &config, finalHandler)
+	}
+
+	finalHandler = middleware.SessionAndAccountParsingMiddleware(
 		config,
 		service.SessionServiceSetup{
 			Database:  connection,

@@ -18,7 +18,9 @@
 package route
 
 import (
-	"fmt"
+	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"src/service"
 	"strings"
@@ -27,17 +29,15 @@ import (
 )
 
 func HandleAccountRegister(writer http.ResponseWriter, request *http.Request) {
-	query := request.URL.Query()
-	username := strings.TrimSpace(query.Get("username"))
-	password := strings.TrimSpace(query.Get("password"))
-
-	if username == "" || password == "" {
-		http.Error(writer, "Username and password are required", http.StatusBadRequest)
+	username, password, err := GetUsernameAndPasswordFromBody(request.Body)
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusBadRequest)
+		log.Err(err)
 		return
 	}
 
-	ass := request.Context().Value(AccountServiceSetupKey).(service.AccountServiceSetup)
-	_, err := service.CreateAccount(ass, username, password)
+	_, _, accountContext := GetKeysFromContext(request.Context())
+	_, err = service.CreateAccount(accountContext.ServiceSetup, username, password)
 	if err != nil {
 		http.Error(writer, "Failed to create account", http.StatusInternalServerError)
 		log.Err(err)
@@ -45,63 +45,91 @@ func HandleAccountRegister(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	writer.WriteHeader(http.StatusOK)
+	return
 }
 func HandleAccountLogin(writer http.ResponseWriter, request *http.Request) {
-	query := request.URL.Query()
-	username := strings.TrimSpace(query.Get("username"))
-	password := strings.TrimSpace(query.Get("password"))
-
-	if username == "" || password == "" {
-		http.Error(writer, "Username and password are required", http.StatusBadRequest)
+	username, password, err := GetUsernameAndPasswordFromBody(request.Body)
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusBadRequest)
+		log.Err(err)
 		return
 	}
 
-	config, sss, _, _, _ := GetKeysFromContext(request.Context())
-	ass := request.Context().Value(AccountServiceSetupKey).(service.AccountServiceSetup)
+	generalContext, sessionContext, accountContext := GetKeysFromContext(request.Context())
 
-	sessionFormatted, err := service.AccountLogin(ass, sss, config.Session.ValidFor, username, password)
+	sessionFormatted, err := service.AccountLogin(accountContext.ServiceSetup, sessionContext.ServiceSetup, generalContext.Config.Session.ValidFor, username, password)
 	if err != nil {
 		http.Error(writer, "Failed to login", http.StatusInternalServerError)
 		log.Err(err)
 		return
 	}
 
+	http.SetCookie(writer, BuildSessionHttpCookie(sessionFormatted, generalContext.Config.Session.ValidFor))
 	writer.WriteHeader(http.StatusOK)
-	_, err = fmt.Fprintf(writer, sessionFormatted)
+	return
+}
+func HandleAccountChangePassword(writer http.ResponseWriter, request *http.Request) {
+	_, newPassword, err := GetUsernameAndPasswordFromBody(request.Body)
 	if err != nil {
-		http.Error(writer, "Failed to write session", http.StatusInternalServerError)
+		http.Error(writer, err.Error(), http.StatusBadRequest)
 		log.Err(err)
 		return
 	}
-}
-func HandleChangePassword(writer http.ResponseWriter, request *http.Request) {
-	query := request.URL.Query()
-	newPassword := strings.TrimSpace(query.Get("newPassword"))
 
-	if strings.TrimSpace(newPassword) == "" {
-		http.Error(writer, "New password is required", http.StatusBadRequest)
-		return
-	}
+	_, sessionContext, accountContext := GetKeysFromContext(request.Context())
 
-	_, _, ass, _, account := GetKeysFromContext(request.Context())
-
-	err := service.UpdatePassword(ass, account.UUID, newPassword)
+	err = service.UpdatePassword(accountContext.ServiceSetup, accountContext.Account.UUID, newPassword)
 	if err != nil {
 		http.Error(writer, "Failed to update password", http.StatusInternalServerError)
 		log.Err(err)
 		return
 	}
 
+	http.SetCookie(writer, BuildSessionHttpCookie(service.BuildSessionString(sessionContext.UUID, sessionContext.MacTag), -1)) // Invalidating ALL sessions too
 	writer.WriteHeader(http.StatusOK)
 	return
 }
 
 func HandleAccountDelete(writer http.ResponseWriter, request *http.Request) {
-	_, _, ass, _, account := GetKeysFromContext(request.Context())
-	err := service.DeleteAccount(ass, account.UUID)
+	_, sessionContext, accountContext := GetKeysFromContext(request.Context())
+	err := service.DeleteAccount(accountContext.ServiceSetup, accountContext.Account.UUID)
 	if err != nil {
 		http.Error(writer, "Failed to delete session", http.StatusInternalServerError)
 		log.Err(err)
 		return
 	}
+	http.SetCookie(writer, BuildSessionHttpCookie(service.BuildSessionString(sessionContext.UUID, sessionContext.MacTag), -1)) // Invalidating ALL sessions too
+	writer.WriteHeader(http.StatusOK)
+	return
+}
+
+func HandleAccountLogout(writer http.ResponseWriter, request *http.Request) {
+	_, sessionContext, _ := GetKeysFromContext(request.Context())
+	err := service.DeleteSession(sessionContext.ServiceSetup, sessionContext.UUID)
+	if err != nil {
+		http.Error(writer, "Failed to delete session", http.StatusInternalServerError)
+		log.Err(err)
+	}
+	http.SetCookie(writer, BuildSessionHttpCookie(service.BuildSessionString(sessionContext.UUID, sessionContext.MacTag), -1)) // Invalidating ALL sessions too
+	writer.WriteHeader(http.StatusNoContent)
+	return
+}
+
+func GetUsernameAndPasswordFromBody(bodyRC io.ReadCloser) (string, string, error) {
+	defer bodyRC.Close()
+
+	var data struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+
+	if err := json.NewDecoder(bodyRC).Decode(&data); err != nil {
+		return "", "", err
+	}
+
+	if strings.TrimSpace(data.Password) == "" {
+		return "", "", errors.New("(new) password cannot be empty")
+	}
+
+	return data.Username, data.Password, nil
 }

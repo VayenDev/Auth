@@ -109,7 +109,7 @@ func CreateSession(setup SessionServiceSetup, ownerUUID uuid.UUID, validFor time
 		ValidFor:  validFor,
 	}
 
-	query := "INSERT INTO sessions (uuid, user_uuid, mac_key, create_at, valid_for) VALUES ($1, $2, $3, $4)"
+	query := "INSERT INTO sessions (uuid, user_uuid, mac_key, create_at, valid_for) VALUES ($1, $2, $3, $4, $5)"
 	_, err = setup.Database.Exec(setup.DBContext, query, session.UUID, ownerUUID, session.MacKey, session.CreatedAt, session.ValidFor)
 	if err != nil {
 		return data.Session{}, nil, err
@@ -136,24 +136,22 @@ func DeleteSession(setup SessionServiceSetup, uuid uuid.UUID) error {
 	return err
 }
 
-func SplitUUIDAndMAC(uuidAndMac string) (uuid.UUID, [crypto.MacKeySize]byte, error) {
+func SplitUUIDAndMAC(uuidAndMac string) (uuid.UUID, []byte, error) {
 	result := strings.Split(uuidAndMac, ".")
 
 	if len(result) != 2 {
-		return uuid.Nil, [crypto.MacKeySize]byte{}, errors.New("invalid uuid and mac")
+		return uuid.Nil, []byte{}, errors.New("invalid uuid and mac")
 	}
 
 	parsedUUID, err := uuid.Parse(strings.TrimPrefix(result[0], "VA:"))
 	if err != nil {
-		return uuid.Nil, [crypto.MacKeySize]byte{}, err
+		return uuid.Nil, []byte{}, err
 	}
 
-	macSlice := []byte(result[1])
-	if len(macSlice) != crypto.MacKeySize {
-		return uuid.Nil, [crypto.MacKeySize]byte{}, errors.New("invalid mac tag")
-	}
-	var macTag [crypto.MacKeySize]byte
-	copy(macTag[:], macSlice)
-
+	macTag := []byte(result[1])
 	return parsedUUID, macTag, nil
+}
+
+func BuildSessionString(uuid uuid.UUID, macTag []byte) string {
+	return fmt.Sprintf("VA:%s.%s", uuid, macTag)
 }

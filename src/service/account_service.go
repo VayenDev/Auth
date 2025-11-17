@@ -20,7 +20,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"src/crypto"
 	"src/data"
 	"strings"
@@ -104,7 +103,7 @@ func UpdatePassword(setup AccountServiceSetup, uuid uuid.UUID, newPassword strin
 	if err != nil {
 		return err
 	}
-	query := "UPDATE accounts SET password_hash = $1 WHERE uuid = $2"
+	query := "UPDATE accounts SET password_hash = $1 WHERE uuid = $2; DELETE FROM sessions WHERE user_uuid = $2"
 	_, err = setup.Database.Exec(setup.DBContext, query, hashedPassword, uuid)
 	return err
 }
@@ -139,7 +138,7 @@ func AccountLogin(setup AccountServiceSetup, sss SessionServiceSetup, validFor t
 		return "", err
 	}
 
-	return fmt.Sprintf("VA:%s.%s", session.UUID, mac), nil
+	return BuildSessionString(session.UUID, mac), nil
 }
 
 func CreateAccount(setup AccountServiceSetup, username string, password string) (data.Account, error) {

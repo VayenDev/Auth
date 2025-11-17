@@ -29,10 +29,11 @@ import (
 )
 
 type Config struct {
-	Database DatabaseConfig
-	Session  SessionConfig
-	TLS      TLSConfig
-	Port     int
+	Database  DatabaseConfig
+	Session   SessionConfig
+	TLS       TLSConfig
+	RateLimit RateLimitConfig
+	Port      int
 }
 
 type DatabaseConfig struct {
@@ -55,6 +56,12 @@ type TLSConfig struct {
 	KeyFile  string
 }
 
+type RateLimitConfig struct {
+	Enabled     bool
+	Window      time.Duration
+	MaxRequests int
+}
+
 var DefaultConfig = Config{
 	Database: DatabaseConfig{
 		Host:     "localhost",
@@ -72,6 +79,11 @@ var DefaultConfig = Config{
 		Enabled:  false,
 		CertFile: "",
 		KeyFile:  "",
+	},
+	RateLimit: RateLimitConfig{
+		Enabled:     true,
+		Window:      5 * time.Second,
+		MaxRequests: 10,
 	},
 	Port: 8080,
 }

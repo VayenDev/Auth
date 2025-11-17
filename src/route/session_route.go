@@ -18,29 +18,20 @@
 package route
 
 import (
-	"context"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"src/crypto"
-	"src/data"
-	"src/files"
 	"src/service"
-	"strings"
+	"time"
 
 	"github.com/rs/zerolog/log"
 )
 
 func HandleSessionValid(writer http.ResponseWriter, request *http.Request) {
-	_, _, _, session, _ := GetKeysFromContext(request.Context())
+	_, sessionContext, _ := GetKeysFromContext(request.Context())
 
-	_, macTag, err := service.SplitUUIDAndMAC(request.Header.Get("Authorization"))
-	if err != nil {
-		http.Error(writer, "Invalid authorization header", http.StatusUnauthorized)
-		log.Err(err)
-		return
-	}
-
-	isValid := crypto.VerifyMAC([]byte(fmt.Sprintf("%s:%d", session.UUID, session.ValidFor)), macTag[:], session.MacKey[:])
+	isValid := crypto.VerifyMAC([]byte(fmt.Sprintf("%s:%d", sessionContext.UUID, sessionContext.Session.ValidFor)), sessionContext.MacTag[:], sessionContext.Session.MacKey[:])
 
 	writer.WriteHeader(http.StatusOK)
 	if isValid {
@@ -54,8 +45,8 @@ func HandleSessionValid(writer http.ResponseWriter, request *http.Request) {
 	}
 }
 func HandleSessionExpired(writer http.ResponseWriter, request *http.Request) {
-	_, _, _, session, _ := GetKeysFromContext(request.Context())
-	expired := session.Expired()
+	_, sessionContext, _ := GetKeysFromContext(request.Context())
+	expired := sessionContext.Session.Expired()
 
 	writer.WriteHeader(http.StatusOK)
 	if expired {
@@ -71,8 +62,8 @@ func HandleSessionExpired(writer http.ResponseWriter, request *http.Request) {
 	return
 }
 func HandleSessionInvalidate(writer http.ResponseWriter, request *http.Request) {
-	_, sss, _, session, _ := GetKeysFromContext(request.Context())
-	err := service.DeleteSession(sss, session.UUID)
+	_, sessionContext, _ := GetKeysFromContext(request.Context())
+	err := service.DeleteSession(sessionContext.ServiceSetup, sessionContext.UUID)
 	if err != nil {
 		http.Error(writer, "Failed to delete session", http.StatusInternalServerError)
 		log.Err(err)
@@ -80,75 +71,43 @@ func HandleSessionInvalidate(writer http.ResponseWriter, request *http.Request) 
 	}
 }
 
-func SessionMiddleware(config files.Config, sessionServiceSetup service.SessionServiceSetup, accountServiceSetup service.AccountServiceSetup, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		ctx = context.WithValue(ctx, ConfigKey, config)
-		ctx = context.WithValue(ctx, SessionServiceSetupKey, sessionServiceSetup)
-		ctx = context.WithValue(ctx, AccountServiceSetupKey, accountServiceSetup)
+func BuildSessionHttpCookie(token string, validFor time.Duration) *http.Cookie {
+	var maxAge int
+	if validFor < 0 {
+		maxAge = -1
+	} else {
+		maxAge = int(validFor / time.Second)
+	}
 
-		authHeader := r.Header.Get("Authorization")
-		if strings.TrimSpace(authHeader) == "" || !strings.HasPrefix(authHeader, "VA:") {
-			http.Error(w, "Authorization header is required", http.StatusUnauthorized)
-			return
-		}
+	var expires time.Time
+	if maxAge == -1 {
+		expires = time.Unix(0, 0)
+	} else {
+		expires = time.Now().Add(validFor)
+	}
 
-		if r.URL.Path == "/account/login" || r.URL.Path == "/account/register" {
-			next.ServeHTTP(w, r.WithContext(ctx))
-			return
-		}
-
-		retrievedUUID, _, err := service.SplitUUIDAndMAC(authHeader)
-		if err != nil {
-			http.Error(w, "Invalid authorization header", http.StatusUnauthorized)
-			log.Err(err)
-			return
-		}
-
-		session, err := service.GetSession(sessionServiceSetup, retrievedUUID)
-		if err != nil {
-			http.Error(w, "Invalid authorization header", http.StatusUnauthorized)
-			log.Err(err)
-			return
-		}
-
-		ctx = context.WithValue(ctx, SessionKey, session)
-
-		if r.URL.Path == "/session/valid" {
-			next.ServeHTTP(w, r.WithContext(ctx))
-			return
-		}
-
-		if session.Expired() {
-			http.Error(w, "Session expired", http.StatusUnauthorized)
-			err := service.DeleteSession(sessionServiceSetup, retrievedUUID)
-			if err != nil {
-				log.Err(err)
-			}
-			return
-		}
-
-		account, err := service.GetAccount(accountServiceSetup, session.UserUUID)
-		if err != nil {
-			http.Error(w, "Failed to get account", http.StatusInternalServerError)
-			log.Err(err)
-			return
-		}
-
-		ctx = context.WithValue(ctx, AccountKey, account)
-		r = r.WithContext(ctx)
-
-		next.ServeHTTP(w, r)
-	})
+	return &http.Cookie{
+		Name:     "session",
+		Value:    base64.URLEncoding.EncodeToString([]byte(token)),
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   maxAge,
+		Expires:  expires,
+	}
 }
 
-func GetKeysFromContext(context context.Context) (files.Config, service.SessionServiceSetup, service.AccountServiceSetup, data.Session, data.Account) {
-	retrievedConfig := context.Value(ConfigKey).(files.Config)
-	retrievedSessionServiceSetup := context.Value(SessionServiceSetupKey).(service.SessionServiceSetup)
-	retrievedAccountServiceSetup := context.Value(AccountServiceSetupKey).(service.AccountServiceSetup)
+func ReadSessionHttpCookie(request *http.Request) (string, error) {
+	cookie, err := request.Cookie("session")
+	if err != nil {
+		return "", err
+	}
 
-	retrievedSession := context.Value(SessionKey).(data.Session)
-	retrievedAccount := context.Value(AccountKey).(data.Account)
+	decoded, err := base64.URLEncoding.DecodeString(cookie.Value)
+	if err != nil {
+		return "", err
+	}
 
-	return retrievedConfig, retrievedSessionServiceSetup, retrievedAccountServiceSetup, retrievedSession, retrievedAccount
+	return string(decoded), nil
 }

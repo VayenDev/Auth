@@ -17,6 +17,15 @@
 
 package route
 
+import (
+	"context"
+	"src/data"
+	"src/files"
+	"src/service"
+
+	"github.com/google/uuid"
+)
+
 type contextKey string
 
 const (
@@ -24,8 +33,48 @@ const (
 	SessionServiceSetupKey = contextKey("session_service_setup")
 	AccountServiceSetupKey = contextKey("account_service_setup")
 
-	UUIDKey    = contextKey("uuid")
-	MacTagKey  = contextKey("mac_tag")
+	UUIDKey    = contextKey("session_uuid")
+	MacTagKey  = contextKey("session_mac_tag")
 	SessionKey = contextKey("session")
 	AccountKey = contextKey("account")
 )
+
+type GeneralContext struct {
+	Config files.Config
+}
+
+type SessionContext struct {
+	ServiceSetup service.SessionServiceSetup
+	Session      data.Session
+	UUID         uuid.UUID
+	MacTag       []byte
+}
+
+type AccountContext struct {
+	ServiceSetup service.AccountServiceSetup
+	Account      data.Account
+}
+
+func GetKeysFromContext(context context.Context) (GeneralContext, SessionContext, AccountContext) {
+	retrievedConfig := context.Value(ConfigKey).(files.Config)
+	retrievedSessionUUID := context.Value(UUIDKey).(uuid.UUID)
+	retrievedSessionMacTag := context.Value(MacTagKey).([]byte)
+
+	retrievedSessionServiceSetup := context.Value(SessionServiceSetupKey).(service.SessionServiceSetup)
+	retrievedSession := context.Value(SessionKey).(data.Session)
+
+	retrievedAccountServiceSetup := context.Value(AccountServiceSetupKey).(service.AccountServiceSetup)
+	retrievedAccount := context.Value(AccountKey).(data.Account)
+
+	return GeneralContext{
+			Config: retrievedConfig,
+		}, SessionContext{
+			ServiceSetup: retrievedSessionServiceSetup,
+			Session:      retrievedSession,
+			UUID:         retrievedSessionUUID,
+			MacTag:       retrievedSessionMacTag,
+		}, AccountContext{
+			ServiceSetup: retrievedAccountServiceSetup,
+			Account:      retrievedAccount,
+		}
+}
