@@ -31,6 +31,7 @@ import (
 
 	"github.com/dgraph-io/ristretto/v2"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/time/rate"
@@ -73,20 +74,38 @@ func main() {
 	ServerAddress = fmt.Sprintf("localhost:%d", config.Port)
 
 	fmt.Println("Connecting to database...")
-	connection, err := pgx.Connect(context.Background(), buildDatabaseURL(config.Database))
+	databaseConfig, err := pgxpool.ParseConfig(buildDatabaseURL(config.Database))
 	if err != nil {
+		log.Err(err)
 		panic(err)
 	}
-	defer connection.Close(context.Background())
-	err = createTables(connection)
+	databaseConfig.MaxConns = config.Database.MaxConnections
+
+	connection, err := pgxpool.New(context.Background(), databaseConfig.ConnString())
 	if err != nil {
+		log.Err(err)
 		panic(err)
 	}
+	defer connection.Close()
+
+	setupConnection, err := connection.Acquire(context.Background())
+	if err != nil {
+		log.Err(err)
+		panic(err)
+	}
+
+	err = createTables(setupConnection.Conn())
+	if err != nil {
+		setupConnection.Release()
+		log.Err(err)
+		panic(err)
+	}
+	setupConnection.Release()
 
 	fmt.Println("Creating Session Cache...")
 	sessionCache, err := ristretto.NewCache(&ristretto.Config[[]byte, data.Session]{
 		NumCounters: 1e7,
-		MaxCost:     1 << 30,
+		MaxCost:     config.Cache.SessionCacheSize,
 		BufferItems: 64,
 		Metrics:     true,
 	})
@@ -98,7 +117,7 @@ func main() {
 	fmt.Println("Creating Session Cache...")
 	accountCache, err := ristretto.NewCache(&ristretto.Config[[]byte, data.Account]{
 		NumCounters: 1e7,
-		MaxCost:     1 << 30,
+		MaxCost:     config.Cache.AccountCacheSize,
 		BufferItems: 64,
 		Metrics:     true,
 	})
@@ -110,7 +129,7 @@ func main() {
 	fmt.Println("Creating Rate Limit Cache...")
 	rateLimitCache, err := ristretto.NewCache(&ristretto.Config[[]byte, *rate.Limiter]{
 		NumCounters: 1e7,
-		MaxCost:     1 << 30,
+		MaxCost:     config.Cache.RateLimitCacheSize,
 		BufferItems: 64,
 		Metrics:     true,
 	})
@@ -132,6 +151,8 @@ func main() {
 	mux.HandleFunc("POST /account/logout", route.HandleAccountLogout)
 
 	var finalHandler http.Handler = mux
+	finalHandler = middleware.CSRFMiddleware(finalHandler)
+
 	if config.RateLimit.Enabled {
 		finalHandler = middleware.RateLimitMiddleware(rateLimitCache, &config, finalHandler)
 	}

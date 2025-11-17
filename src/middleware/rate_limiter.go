@@ -32,11 +32,13 @@ func RateLimitMiddleware(rateLimitCache *ristretto.Cache[[]byte, *rate.Limiter],
 		id, err := GetIdentifier(r)
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
+			return
 		}
 
 		rateLimiter, success := rateLimitCache.Get(id)
 		if !success {
 			http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
+			return
 		}
 
 		if rateLimiter == nil {

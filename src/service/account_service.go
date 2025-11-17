@@ -27,12 +27,12 @@ import (
 
 	"github.com/dgraph-io/ristretto/v2"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
 
 type AccountServiceSetup struct {
-	Database  *pgx.Conn
+	Database  *pgxpool.Pool
 	DBContext context.Context
 	Cache     *ristretto.Cache[[]byte, data.Account]
 }

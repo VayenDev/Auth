@@ -28,12 +28,12 @@ import (
 
 	"github.com/dgraph-io/ristretto/v2"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
 
 type SessionServiceSetup struct {
-	Database  *pgx.Conn
+	Database  *pgxpool.Pool
 	DBContext context.Context
 	Cache     *ristretto.Cache[[]byte, data.Session]
 }
@@ -109,7 +109,7 @@ func CreateSession(setup SessionServiceSetup, ownerUUID uuid.UUID, validFor time
 		ValidFor:  validFor,
 	}
 
-	query := "INSERT INTO sessions (uuid, user_uuid, mac_key, create_at, valid_for) VALUES ($1, $2, $3, $4, $5)"
+	query := "INSERT INTO sessions (uuid, user_uuid, mac_key, created_at, valid_for) VALUES ($1, $2, $3, $4, $5)"
 	_, err = setup.Database.Exec(setup.DBContext, query, session.UUID, ownerUUID, session.MacKey, session.CreatedAt, session.ValidFor)
 	if err != nil {
 		return data.Session{}, nil, err

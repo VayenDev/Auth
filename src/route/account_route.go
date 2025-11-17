@@ -22,8 +22,10 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"src/crypto"
 	"src/service"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog/log"
 )
@@ -63,8 +65,17 @@ func HandleAccountLogin(writer http.ResponseWriter, request *http.Request) {
 		log.Err(err)
 		return
 	}
+	csrfToken, err := crypto.GenerateCSRF()
+	if err != nil {
+		http.Error(writer, "Failed to generate CSRF token", http.StatusInternalServerError)
+		log.Err(err)
+		return
+	}
 
 	http.SetCookie(writer, BuildSessionHttpCookie(sessionFormatted, generalContext.Config.Session.ValidFor))
+
+	http.SetCookie(writer, buildCsrfCookie(csrfToken, generalContext.Config.Session.ValidFor))
+
 	writer.WriteHeader(http.StatusOK)
 	return
 }
@@ -86,31 +97,41 @@ func HandleAccountChangePassword(writer http.ResponseWriter, request *http.Reque
 	}
 
 	http.SetCookie(writer, BuildSessionHttpCookie(service.BuildSessionString(sessionContext.UUID, sessionContext.MacTag), -1)) // Invalidating ALL sessions too
+	http.SetCookie(writer, buildCsrfCookie("", -1))
+
 	writer.WriteHeader(http.StatusOK)
 	return
 }
 
 func HandleAccountDelete(writer http.ResponseWriter, request *http.Request) {
 	_, sessionContext, accountContext := GetKeysFromContext(request.Context())
+
 	err := service.DeleteAccount(accountContext.ServiceSetup, accountContext.Account.UUID)
 	if err != nil {
 		http.Error(writer, "Failed to delete session", http.StatusInternalServerError)
 		log.Err(err)
 		return
 	}
+
 	http.SetCookie(writer, BuildSessionHttpCookie(service.BuildSessionString(sessionContext.UUID, sessionContext.MacTag), -1)) // Invalidating ALL sessions too
+	http.SetCookie(writer, buildCsrfCookie("", -1))
+
 	writer.WriteHeader(http.StatusOK)
 	return
 }
 
 func HandleAccountLogout(writer http.ResponseWriter, request *http.Request) {
 	_, sessionContext, _ := GetKeysFromContext(request.Context())
+
 	err := service.DeleteSession(sessionContext.ServiceSetup, sessionContext.UUID)
 	if err != nil {
 		http.Error(writer, "Failed to delete session", http.StatusInternalServerError)
 		log.Err(err)
 	}
+
 	http.SetCookie(writer, BuildSessionHttpCookie(service.BuildSessionString(sessionContext.UUID, sessionContext.MacTag), -1)) // Invalidating ALL sessions too
+	http.SetCookie(writer, buildCsrfCookie("", -1))
+
 	writer.WriteHeader(http.StatusNoContent)
 	return
 }
@@ -132,4 +153,31 @@ func GetUsernameAndPasswordFromBody(bodyRC io.ReadCloser) (string, string, error
 	}
 
 	return data.Username, data.Password, nil
+}
+
+func buildCsrfCookie(token string, validFor time.Duration) *http.Cookie {
+	var maxAge int
+	if validFor < 0 {
+		maxAge = -1
+	} else {
+		maxAge = int(validFor / time.Second)
+	}
+
+	var expires time.Time
+	if maxAge == -1 {
+		expires = time.Unix(0, 0)
+	} else {
+		expires = time.Now().Add(validFor)
+	}
+
+	return &http.Cookie{
+		Name:     "csrf_token", // Different name
+		Value:    token,
+		Path:     "/",
+		HttpOnly: false, // <-- MUST be false so JavaScript can read it
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   maxAge,
+		Expires:  expires,
+	}
 }
