@@ -75,7 +75,7 @@ func RemoveMFA[T data.MFAMethod](setup GeneralData[any], uuid uuid.UUID) error {
 
 	setup.Cache.Del(uuid[:])
 
-	query := fmt.Sprintf("DELETE FROM %s WHERE user_uuid = $1", data.GetTableName[T]())
+	query := fmt.Sprintf("DELETE FROM %s WHERE uuid = $1", data.GetTableName[T]())
 	_, err = setup.Database.Exec(setup.DBContext, query, uuid)
 	return err
 }
