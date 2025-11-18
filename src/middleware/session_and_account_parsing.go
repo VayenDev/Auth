@@ -20,6 +20,7 @@ package middleware
 import (
 	"context"
 	"net/http"
+	"src/data"
 	"src/files"
 	"src/route"
 	"src/service"
@@ -28,7 +29,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func SessionAndAccountParsingMiddleware(config files.Config, sessionServiceSetup service.SessionServiceSetup, accountServiceSetup service.AccountServiceSetup, next http.Handler) http.Handler {
+func SessionAndAccountParsingMiddleware(config files.Config, sessionServiceSetup service.GeneralData[data.Session], accountServiceSetup service.GeneralData[data.Account], next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		ctx = context.WithValue(ctx, route.ConfigKey, config)

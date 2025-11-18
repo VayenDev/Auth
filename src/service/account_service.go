@@ -18,36 +18,19 @@
 package service
 
 import (
-	"context"
+	"crypto/rand"
+	"encoding/base32"
 	"errors"
 	"src/crypto"
 	"src/data"
 	"strings"
 	"time"
 
-	"github.com/dgraph-io/ristretto/v2"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
 
-type AccountServiceSetup struct {
-	Database  *pgxpool.Pool
-	DBContext context.Context
-	Cache     *ristretto.Cache[[]byte, data.Account]
-}
-
-func (setup AccountServiceSetup) Validate() error {
-	if setup.Database == nil {
-		return errors.New("database is required")
-	}
-	if setup.Cache == nil {
-		return errors.New("cache is required")
-	}
-	return nil
-}
-
-func GetAccount(setup AccountServiceSetup, uuid uuid.UUID) (data.Account, error) {
+func GetAccount(setup GeneralData[data.Account], uuid uuid.UUID) (data.Account, error) {
 	err := setup.Validate()
 	if err != nil {
 		return data.Account{}, err
@@ -68,7 +51,7 @@ func GetAccount(setup AccountServiceSetup, uuid uuid.UUID) (data.Account, error)
 	return account, nil
 }
 
-func CheckPassword(setup AccountServiceSetup, uuid uuid.UUID, unhashedPassword string) (bool, error) {
+func CheckPassword(setup GeneralData[data.Account], uuid uuid.UUID, unhashedPassword string) (bool, error) {
 	err := setup.Validate()
 	if err != nil {
 		return false, err
@@ -93,7 +76,7 @@ func CheckPassword(setup AccountServiceSetup, uuid uuid.UUID, unhashedPassword s
 	return result, nil
 }
 
-func UpdatePassword(setup AccountServiceSetup, uuid uuid.UUID, newPassword string) error {
+func UpdatePassword(setup GeneralData[data.Account], uuid uuid.UUID, newPassword string) error {
 	err := setup.Validate()
 	if err != nil {
 		return err
@@ -108,7 +91,7 @@ func UpdatePassword(setup AccountServiceSetup, uuid uuid.UUID, newPassword strin
 	return err
 }
 
-func AccountLogin(setup AccountServiceSetup, sss SessionServiceSetup, validFor time.Duration, username string, password string) (string, error) {
+func AccountLogin(setup GeneralData[data.Account], sss GeneralData[data.Session], validFor time.Duration, username string, password string) (string, error) {
 	err := setup.Validate()
 	if err != nil {
 		return "", err
@@ -141,7 +124,7 @@ func AccountLogin(setup AccountServiceSetup, sss SessionServiceSetup, validFor t
 	return BuildSessionString(session.UUID, mac), nil
 }
 
-func CreateAccount(setup AccountServiceSetup, username string, password string) (data.Account, error) {
+func CreateAccount(setup GeneralData[data.Account], username string, password string) (data.Account, error) {
 	err := setup.Validate()
 	if err != nil {
 		return data.Account{}, err
@@ -153,18 +136,23 @@ func CreateAccount(setup AccountServiceSetup, username string, password string) 
 		return data.Account{}, err
 	}
 	webhookID := uuid.New()
+	recoveryCodes, err := GenerateAccountRecoveryCodes(5)
+	if err != nil {
+		return data.Account{}, err
+	}
 
-	query := "INSERT INTO accounts (uuid, username, password_hash, webhook_id) VALUES ($1, $2, $3, $4)"
-	_, err = setup.Database.Exec(setup.DBContext, query, generatedUUID, username, hashedPassword, webhookID)
+	query := "INSERT INTO accounts (uuid, username, password_hash, webhook_id, recovery_codes) VALUES ($1, $2, $3, $4, $5)"
+	_, err = setup.Database.Exec(setup.DBContext, query, generatedUUID, username, hashedPassword, webhookID, recoveryCodes)
 	if err != nil {
 		return data.Account{}, err
 	}
 
 	account := data.Account{
-		UUID:         generatedUUID,
-		Username:     username,
-		PasswordHash: hashedPassword,
-		WebhookID:    webhookID,
+		UUID:          generatedUUID,
+		Username:      username,
+		PasswordHash:  hashedPassword,
+		WebhookID:     webhookID,
+		RecoveryCodes: recoveryCodes,
 	}
 	added := setup.Cache.Set(generatedUUID[:], account, 0)
 	if !added {
@@ -174,7 +162,20 @@ func CreateAccount(setup AccountServiceSetup, username string, password string) 
 	return account, nil
 }
 
-func DeleteAccount(setup AccountServiceSetup, uuid uuid.UUID) error {
+func GenerateAccountRecoveryCodes(n int) ([]string, error) {
+	codes := make([]string, n)
+	for i := range codes {
+		b := make([]byte, 10)
+		if _, err := rand.Read(b); err != nil {
+			return nil, err
+		}
+		codes[i] = strings.ToUpper(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b))
+		// e.g. X7K9P2M4Q1R8
+	}
+	return codes, nil
+}
+
+func DeleteAccount(setup GeneralData[data.Account], uuid uuid.UUID) error {
 	err := setup.Validate()
 	if err != nil {
 		return err

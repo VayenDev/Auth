@@ -34,6 +34,7 @@ type Config struct {
 	TLS       TLSConfig
 	RateLimit RateLimitConfig
 	Cache     CacheConfig
+	MFA       MFAConfig
 	Port      int
 }
 
@@ -68,6 +69,20 @@ type CacheConfig struct {
 	RateLimitCacheSize int64
 }
 
+type MFAConfig struct {
+	TOTP     TOTPConfig
+	WebAuthn WebAuthnConfig
+}
+
+type TOTPConfig struct {
+	Issuer string
+}
+type WebAuthnConfig struct {
+	RelyingPartyDisplayName string
+	RelyingPartyID          string
+	RelyingPartyOrigins     []string
+}
+
 var DefaultConfig = Config{
 	Database: DatabaseConfig{
 		Host:     "localhost",
@@ -93,6 +108,16 @@ var DefaultConfig = Config{
 		SessionCacheSize:   100 * other.MiB,
 		AccountCacheSize:   20 * other.MiB,
 		RateLimitCacheSize: 50 * other.MiB,
+	},
+	MFA: MFAConfig{
+		TOTP: TOTPConfig{
+			Issuer: "Vayen Auth",
+		},
+		WebAuthn: WebAuthnConfig{
+			RelyingPartyDisplayName: "Vayen Auth",
+			RelyingPartyID:          "vayen.dev/auth",
+			RelyingPartyOrigins:     []string{"https://vayen.dev/auth"},
+		},
 	},
 	Port: 8080,
 }

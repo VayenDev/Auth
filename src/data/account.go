@@ -27,10 +27,11 @@ import (
 func CreateAccountTable(conn *pgx.Conn) error {
 	const schema = `
         CREATE TABLE IF NOT EXISTS accounts (
-            uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            uuid UUID PRIMARY KEY DEFAULT gen_random_uuid() UNIQUE,
             username VARCHAR(32) NOT NULL UNIQUE,
             password_hash TEXT NOT NULL,
             webhook_id UUID NOT NULL UNIQUE,
+            recovery_codes JSONB NOT NULL DEFAULT '[]'
         );
         
         CREATE INDEX IF NOT EXISTS idx_webhook_id ON accounts(webhook_id);
@@ -41,8 +42,9 @@ func CreateAccountTable(conn *pgx.Conn) error {
 }
 
 type Account struct {
-	UUID         uuid.UUID
-	Username     string
-	PasswordHash string
-	WebhookID    uuid.UUID // A unique webhook ID for the account. It is used to receive notifications for e.g., password reset, ... without providing an e-mail address.
+	UUID          uuid.UUID
+	Username      string
+	PasswordHash  string
+	WebhookID     uuid.UUID // A unique webhook ID for the account. It is used to receive notifications for e.g., password reset, ... without providing an e-mail address.
+	RecoveryCodes []string
 }

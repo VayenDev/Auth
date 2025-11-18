@@ -18,7 +18,6 @@
 package middleware
 
 import (
-	"crypto/hmac"
 	"net/http"
 )
 
@@ -47,7 +46,7 @@ func CSRFMiddleware(next http.Handler) http.Handler {
 		}
 		cookieToken := cookie.Value
 
-		if !hmac.Equal([]byte(headerToken), []byte(cookieToken)) {
+		if headerToken != cookieToken {
 			http.Error(w, "Invalid CSRF token", http.StatusForbidden)
 			return
 		}

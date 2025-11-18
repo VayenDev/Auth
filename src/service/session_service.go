@@ -18,7 +18,6 @@
 package service
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"src/crypto"
@@ -26,29 +25,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dgraph-io/ristretto/v2"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 )
 
-type SessionServiceSetup struct {
-	Database  *pgxpool.Pool
-	DBContext context.Context
-	Cache     *ristretto.Cache[[]byte, data.Session]
-}
-
-func (setup SessionServiceSetup) Validate() error {
-	if setup.Database == nil {
-		return errors.New("database is required")
-	}
-	if setup.Cache == nil {
-		return errors.New("cache is required")
-	}
-	return nil
-}
-
-func GetSession(setup SessionServiceSetup, uuid uuid.UUID) (data.Session, error) {
+func GetSession(setup GeneralData[data.Session], uuid uuid.UUID) (data.Session, error) {
 	err := setup.Validate()
 	if err != nil {
 		return data.Session{}, err
@@ -73,7 +54,7 @@ func GetSession(setup SessionServiceSetup, uuid uuid.UUID) (data.Session, error)
 	return session, nil
 }
 
-func GetSessionMACKey(setup SessionServiceSetup, uuid uuid.UUID) ([crypto.MacKeySize]byte, error) {
+func GetSessionMACKey(setup GeneralData[data.Session], uuid uuid.UUID) ([crypto.MacKeySize]byte, error) {
 	err := setup.Validate()
 	if err != nil {
 		return [crypto.MacKeySize]byte{}, err
@@ -89,7 +70,7 @@ func GetSessionMACKey(setup SessionServiceSetup, uuid uuid.UUID) ([crypto.MacKey
 	return macKey, nil
 }
 
-func CreateSession(setup SessionServiceSetup, ownerUUID uuid.UUID, validFor time.Duration) (data.Session, []byte, error) {
+func CreateSession(setup GeneralData[data.Session], ownerUUID uuid.UUID, validFor time.Duration) (data.Session, []byte, error) {
 	err := setup.Validate()
 	if err != nil {
 		return data.Session{}, nil, err
@@ -105,7 +86,7 @@ func CreateSession(setup SessionServiceSetup, ownerUUID uuid.UUID, validFor time
 	session := data.Session{
 		UUID:      generatedUUID,
 		MacKey:    [crypto.MacKeySize]byte(key),
-		CreatedAt: time.Now().Unix(),
+		CreatedAt: time.Now().UnixNano(),
 		ValidFor:  validFor,
 	}
 
@@ -123,7 +104,7 @@ func CreateSession(setup SessionServiceSetup, ownerUUID uuid.UUID, validFor time
 	return session, mac, nil
 }
 
-func DeleteSession(setup SessionServiceSetup, uuid uuid.UUID) error {
+func DeleteSession(setup GeneralData[data.Session], uuid uuid.UUID) error {
 	err := setup.Validate()
 	if err != nil {
 		return err

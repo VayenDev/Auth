@@ -61,7 +61,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	if config == files.DefaultConfig {
+	if config == files.DefaultConfig { // TODO: Fix "== is not defined on type files.Config"
 		log.Error().Msg("Config file cannot be the default files file, please edit the files file and try again!")
 		os.Exit(1)
 	}
@@ -159,12 +159,12 @@ func main() {
 
 	finalHandler = middleware.SessionAndAccountParsingMiddleware(
 		config,
-		service.SessionServiceSetup{
+		service.GeneralData[data.Session]{
 			Database:  connection,
 			DBContext: context.Background(),
 			Cache:     sessionCache,
 		},
-		service.AccountServiceSetup{
+		service.GeneralData[data.Account]{
 			Database:  connection,
 			DBContext: context.Background(),
 			Cache:     accountCache,
@@ -195,6 +195,10 @@ func createTables(connection *pgx.Conn) error {
 		return err
 	}
 	err = data.CreateSessionTable(connection)
+	if err != nil {
+		return err
+	}
+	err = data.CreateMFATable(connection)
 	if err != nil {
 		return err
 	}
