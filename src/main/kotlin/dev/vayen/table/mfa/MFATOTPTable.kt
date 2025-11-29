@@ -1,5 +1,5 @@
 /*
- * Auth: argon2.go
+ * Vayen Auth (Vayen_Auth.main): MFATOTPTable.kt
  * Copyright (C) 2025 mtctx
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,16 +15,18 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package crypto
+package dev.vayen.table.mfa
 
-import (
-	"github.com/alexedwards/argon2id"
-)
+import dev.vayen.table.AccountTable
+import org.jetbrains.exposed.sql.ReferenceOption
+import org.jetbrains.exposed.sql.Table
 
-func HashArgon2id(input string) (string, error) {
-	return argon2id.CreateHash(input, argon2id.DefaultParams)
-}
+const val MFA_TOTP_TABLE_NAME = "mfa_totp"
 
-func VerifyArgon2id(input string, hash string) (bool, error) {
-	return argon2id.ComparePasswordAndHash(input, hash)
+object MFATOTPTable : Table(MFA_TOTP_TABLE_NAME) {
+    val uuid = uuid("uuid").index()
+    val userUUID = reference("user_uuid", AccountTable.uuid, ReferenceOption.CASCADE).index()
+    val secret = text("secret")
+
+    override val primaryKey = PrimaryKey(uuid)
 }

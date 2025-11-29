@@ -1,14 +1,16 @@
 # 🔒 Vayen Auth Security Policy
 
 Hey there! Thanks so much for checking out our security policy. It means a lot that you're taking the time to understand
-how we keep Vayen Auth safe. We truly believe that a secure project is a community effort, and your help is a huge part of
+how we keep Vayen Auth safe. We truly believe that a secure project is a community effort, and your help is a huge part
+of
 that.
 
 ---
 
 ### **🛡️ What We Support**
 
-We know it's important for you to feel confident that the version of Vayen Auth you're using is protected. To keep things
+We know it's important for you to feel confident that the version of Vayen Auth you're using is protected. To keep
+things
 simple and efficient, we focus all our energy on making sure our **very latest version** is as secure as possible.
 
 Since we're a new project and still growing fast, we aren't able to maintain older versions. That means, to get the
