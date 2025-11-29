@@ -43,7 +43,10 @@ suspend fun main() {
         exitProcess(0)
     }
 
-    val config = configPath.readAndDeserialize(Config.serializer(), jsonForHumans)
+    val config = configPath.readAndDeserialize(Config.serializer(), jsonForHumans).getOrNull() ?: run {
+        lumina.error("Error while reading and deserializing config! Exiting...")
+        exitProcess(1)
+    }
 
     val validationErrors = config.validate(lumina)
     if (validationErrors.isNotEmpty()) {
