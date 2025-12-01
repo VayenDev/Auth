@@ -1,5 +1,5 @@
 /*
- * Vayen Auth (Vayen_Auth): settings.gradle.kts
+ * Vayen Auth (Vayen_Auth.main): Body.kt
  * Copyright (C) 2025 mtctx
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,11 +15,18 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-rootProject.name = "Vayen Auth"
+package dev.vayen.route
 
-dependencyResolutionManagement {
-    repositories {
-        mavenCentral()
-        maven("https://packages.confluent.io/maven/")
-    }
+import kotlinx.serialization.Serializable
+
+
+object Body {
+    @Serializable
+    open class BasicResponse(open val message: String)
+
+    @Serializable
+    open class ErrorResponse(open val message: String, open val errors: Collection<String> = emptyList())
+
+    @Serializable
+    data class UsernameAndPassword(val username: String, val password: String)
 }

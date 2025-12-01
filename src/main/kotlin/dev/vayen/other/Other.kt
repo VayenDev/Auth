@@ -1,5 +1,5 @@
 /*
- * Vayen Auth (Vayen_Auth): settings.gradle.kts
+ * Vayen Auth (Vayen_Auth.main): Other.kt
  * Copyright (C) 2025 mtctx
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,11 +15,10 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-rootProject.name = "Vayen Auth"
+package dev.vayen.other
 
-dependencyResolutionManagement {
-    repositories {
-        mavenCentral()
-        maven("https://packages.confluent.io/maven/")
-    }
-}
+import kotlinx.serialization.Serializable
+import mtctx.utilities.serialization.serializer.UUIDSerializer
+import java.util.*
+
+typealias SerializableUUID = @Serializable(with = UUIDSerializer::class) UUID

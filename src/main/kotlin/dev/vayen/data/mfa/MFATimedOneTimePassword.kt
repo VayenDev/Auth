@@ -7,7 +7,7 @@
  * by the Free Software Foundation, either **version 3** of the License, or
  * (at your option) any later version.
  *
- * *This program is distributed WITHOUT ANY WARRANTY;** see the
+ * This program is distributed WITHOUT ANY WARRANTY; see the
  * GNU General Public License for more details, which you should have
  * received with this program.
  *
@@ -17,9 +17,9 @@
 
 package dev.vayen.data.mfa
 
+import dev.vayen.config.UUIDSerializer
 import dev.vayen.table.mfa.MFA_TOTP_TABLE_NAME
 import kotlinx.serialization.Serializable
-import mtctx.utilities.serialization.serializer.UUIDSerializer
 import java.util.*
 
 @Serializable

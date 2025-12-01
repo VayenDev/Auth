@@ -7,7 +7,7 @@
  * by the Free Software Foundation, either **version 3** of the License, or
  * (at your option) any later version.
  *
- * *This program is distributed WITHOUT ANY WARRANTY;** see the
+ * This program is distributed WITHOUT ANY WARRANTY; see the
  * GNU General Public License for more details, which you should have
  * received with this program.
  *
@@ -52,20 +52,24 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-kotlin-datetime:${exposedVersion}")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("org.postgresql:postgresql:$postgresVersion")
-    implementation("io.ktor:ktor-server-call-logging")
     implementation("io.ktor:ktor-server-call-id")
     implementation("io.ktor:ktor-server-resources")
     implementation("io.ktor:ktor-server-csrf")
     implementation("io.ktor:ktor-server-hsts")
     implementation("io.ktor:ktor-server-http-redirect")
     implementation("io.ktor:ktor-server-cors")
-    implementation("io.ktor:ktor-server-compression")
     implementation("io.ktor:ktor-server-cio")
     implementation("dev.mtctx.library:lumina:4.1.1")
     implementation("dev.mtctx.library:utilities:1.7.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     implementation("com.mayakapps.kache:kache:2.1.1")
     implementation("com.webauthn4j:webauthn4j-core:0.30.0.RELEASE")
+    implementation("io.ktor:ktor-server-forwarded-header:3.3.2")
+    implementation("io.ktor:ktor-server-default-headers:3.3.2")
+    implementation("io.github.flaxoos:ktor-client-circuit-breaker:2.2.1")
+    implementation("io.ktor:ktor-server-sessions:3.3.2")
+    implementation("io.ktor:ktor-server-call-logging:3.3.2")
+    implementation("io.ktor:ktor-server-call-logging:3.3.2")
 
     testImplementation("io.ktor:ktor-server-test-host")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlinVersion")

@@ -7,7 +7,7 @@
  * by the Free Software Foundation, either **version 3** of the License, or
  * (at your option) any later version.
  *
- * *This program is distributed WITHOUT ANY WARRANTY;** see the
+ * This program is distributed WITHOUT ANY WARRANTY; see the
  * GNU General Public License for more details, which you should have
  * received with this program.
  *
@@ -17,7 +17,14 @@
 
 package dev.vayen.config
 
+import dev.vayen.config.authentication.AccountConfig
+import dev.vayen.config.authentication.SessionConfig
+import dev.vayen.config.security.*
+import dev.vayen.config.storage.CacheConfig
+import dev.vayen.config.storage.DatabaseConfig
+import io.ktor.http.*
 import mtctx.utilities.datasizes.mib
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -33,12 +40,45 @@ object ConfigDefaults {
     val session = SessionConfig(
         15.minutes
     )
+    val hsts = HSTSConfig(
+        enabled = true,
+        includeSubdomains = true,
+        preload = true,
+        maxAgeInSeconds = 365.days,
+        customDirectives = mapOf()
+    )
 
+    val httpsRedirect = HttpsRedirectConfig(
+        true,
+        listOf("/health", "/healthz", "/ready", "/live", "/metrics", "/actuator", "/internal", "/ws", "/websocket"),
+        listOf()
+    )
     val tls = TLSConfig(
         false,
-        "",
-        ""
+        443,
+        hsts,
+        httpsRedirect
     )
+
+    val cors = CORSConfig(
+        listOf("localhost"),
+        listOf(
+            HttpMethod.Get,
+            HttpMethod.Post,
+            HttpMethod.Delete
+        ),
+        listOf("Cookie"),
+        listOf()
+    )
+
+    val csrf = CSRFConfig(
+        true,
+        originMatchesHost = true,
+        allowedOrigins = listOf(),
+        headerChecks = listOf("X-CSRF-Token", "_csrf"),
+        failWithBadRequest = true
+    )
+
     val rateLimit = RateLimitConfig(
         enabled = true,
         window = 5.seconds,
@@ -46,9 +86,26 @@ object ConfigDefaults {
     )
 
     val cache = CacheConfig(
-        100.mib,
-        20.mib,
-        50.mib
+        128.mib,
+        64.mib,
+    )
+
+    val account = AccountConfig(
+        AccountConfig.UsernamePolicyConfig(
+            listOf('!', '@', '#', '$', '%', '^', '&', '*', '(', ')'),
+            DefaultBannedWords,
+            5,
+            20
+        ),
+        AccountConfig.PasswordPolicyConfig(
+            10,
+            128,
+            2,
+            2,
+            2,
+            1,
+            listOf('!', '@', '#', '$', '%', '^', '&', '*', '(', ')')
+        )
     )
 
     val mfa_totp = TOTPConfig(

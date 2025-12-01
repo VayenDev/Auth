@@ -7,7 +7,7 @@
  * by the Free Software Foundation, either **version 3** of the License, or
  * (at your option) any later version.
  *
- * *This program is distributed WITHOUT ANY WARRANTY;** see the
+ * This program is distributed WITHOUT ANY WARRANTY; see the
  * GNU General Public License for more details, which you should have
  * received with this program.
  *
@@ -17,8 +17,12 @@
 
 package dev.vayen.data
 
+import dev.vayen.other.SerializableUUID
+import dev.vayen.service.SessionService
+import io.ktor.server.sessions.*
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
-import mtctx.utilities.serialization.serializer.UUIDSerializer
+import mtctx.utilities.flatMap
 import java.util.*
 import kotlin.time.Clock
 import kotlin.time.Duration
@@ -28,11 +32,28 @@ import kotlin.time.Instant
 @OptIn(ExperimentalTime::class)
 @Serializable
 class Session(
-    @Serializable(with = UUIDSerializer::class) val uuid: UUID,
-    @Serializable(with = UUIDSerializer::class) val userUUID: UUID,
+    val uuid: SerializableUUID,
+    val userUUID: SerializableUUID,
     val macKey: ByteArray,
     val createdAt: Instant,
-    val validFor: Duration
+    val validFor: Duration,
+    val cookieValue: String // Format: VA:uuid.<macTag by uuid:validFor>
 ) {
     fun expired(): Boolean = createdAt.plus(validFor) < Clock.System.now()
+
+    class Serializer(private val sessionService: SessionService) : SessionSerializer<Session> {
+        override fun deserialize(text: String): Session = runBlocking {
+            SessionService.splitUUIDAndMAC(text).flatMap { (uuid, macTag) ->
+                sessionService.getAndCheck(uuid, macTag)
+            }.getOrNull() ?: throw IllegalArgumentException("Invalid or Tampered Session!")
+        }
+
+        override fun serialize(session: Session): String = session.cookieValue
+    }
 }
+
+
+@Serializable
+data class CSRFSession(
+    val csrfToken: String = UUID.randomUUID().toString()
+)

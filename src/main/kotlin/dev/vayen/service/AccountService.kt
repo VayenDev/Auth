@@ -7,7 +7,7 @@
  * by the Free Software Foundation, either **version 3** of the License, or
  * (at your option) any later version.
  *
- * *This program is distributed WITHOUT ANY WARRANTY;** see the
+ * This program is distributed WITHOUT ANY WARRANTY; see the
  * GNU General Public License for more details, which you should have
  * received with this program.
  *
@@ -17,12 +17,15 @@
 
 package dev.vayen.service
 
+import com.mayakapps.kache.ObjectKache
+import dev.vayen.config.Config
 import dev.vayen.data.Account
-import dev.vayen.other.GeneralData
+import dev.vayen.data.Session
 import dev.vayen.table.AccountTable
 import dev.vayen.table.SessionTable
 import dev.vayen.table.mfa.MFATOTPTable
 import dev.vayen.table.mfa.MFAWebAuthnTable
+import mtctx.lumina.v4.Lumina
 import mtctx.utilities.*
 import mtctx.utilities.crypto.Argon2
 import mtctx.utilities.crypto.SECURE_RANDOM
@@ -31,7 +34,8 @@ import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import java.util.*
 
-class AccountService(private val setup: GeneralData<UUID, Account>) : DatabaseService<UUID, Account>() {
+class AccountService(config: Config, lumina: Lumina, database: Database, cache: ObjectKache<UUID, Account>) :
+    DatabaseService<UUID, Account>(config, lumina, database, cache) {
     init {
         SchemaUtils.create(AccountTable, MFATOTPTable, MFAWebAuthnTable)
     }
@@ -51,7 +55,7 @@ class AccountService(private val setup: GeneralData<UUID, Account>) : DatabaseSe
         id: UUID
     ): Outcome<Account> = runCatchingOutcomeOf<Account> {
         val account =
-            setup.cache.get(id)
+            cache.get(id)
                 ?: dbQuery { get(AccountTable.uuid, id) }
                 ?: return failure("Account not found")
         account
@@ -94,7 +98,7 @@ class AccountService(private val setup: GeneralData<UUID, Account>) : DatabaseSe
         }
     }
 
-    suspend fun login(sessionService: SessionService, username: String, password: String): Outcome<String> =
+    suspend fun login(sessionService: SessionService, username: String, password: String): Outcome<Session> =
         getByUsername(username).mapCatching { account ->
             val correctPassword = Argon2.verify(password, account.passwordHash).getOrNull()
                 ?: return failure("Could not check passwords!")
@@ -119,9 +123,8 @@ class AccountService(private val setup: GeneralData<UUID, Account>) : DatabaseSe
         }
     }
 
-
     override suspend fun delete(id: UUID): Outcome<Unit> = runCatchingOutcomeOf<Unit> {
-        setup.cache.remove(id)
+        cache.remove(id)
         dbQuery {
             AccountTable.deleteWhere { AccountTable.uuid eq id }
             SessionTable.deleteWhere { SessionTable.userUUID eq id }

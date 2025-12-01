@@ -1,5 +1,7 @@
 #!/bin/sh
 
+
+
 #
 # Vayen Auth (Vayen_Auth): gradlew
 # Copyright (C) 2025 mtctx
@@ -9,7 +11,7 @@
 # by the Free Software Foundation, either **version 3** of the License, or
 # (at your option) any later version.
 #
-# **This program is distributed WITHOUT ANY WARRANTY;** see the
+# This program is distributed WITHOUT ANY WARRANTY; see the
 # GNU General Public License for more details, which you should have
 # received with this program.
 #

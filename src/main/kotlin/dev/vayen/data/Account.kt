@@ -7,7 +7,7 @@
  * by the Free Software Foundation, either **version 3** of the License, or
  * (at your option) any later version.
  *
- * *This program is distributed WITHOUT ANY WARRANTY;** see the
+ * This program is distributed WITHOUT ANY WARRANTY; see the
  * GNU General Public License for more details, which you should have
  * received with this program.
  *
@@ -24,7 +24,7 @@ class Account(
     val username: String,
     val passwordHash: ByteArray,
     val webhookUUID: UUID,
-    val recoveryCodes: List<String>
+    val recoveryCodes: List<String> // max. 5
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

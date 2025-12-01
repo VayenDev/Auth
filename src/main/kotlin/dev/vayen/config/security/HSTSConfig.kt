@@ -1,5 +1,5 @@
 /*
- * Vayen Auth (Vayen_Auth.main): Databases.kt
+ * Vayen Auth (Vayen_Auth.main): HSTSConfig.kt
  * Copyright (C) 2025 mtctx
  *
  * This program is free software: you can redistribute it and/or modify
@@ -7,7 +7,7 @@
  * by the Free Software Foundation, either **version 3** of the License, or
  * (at your option) any later version.
  *
- * *This program is distributed WITHOUT ANY WARRANTY;** see the
+ * This program is distributed WITHOUT ANY WARRANTY; see the
  * GNU General Public License for more details, which you should have
  * received with this program.
  *
@@ -15,16 +15,16 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-package dev.vayen
+package dev.vayen.config.security
 
-import io.ktor.server.application.*
-import org.jetbrains.exposed.sql.Database
+import kotlinx.serialization.Serializable
+import kotlin.time.Duration
 
-fun Application.configureDatabase(): Database {
-    return Database.connect(
-        url = "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1",
-        user = "root",
-        driver = "org.h2.Driver",
-        password = "",
-    )
-}
+@Serializable
+data class HSTSConfig(
+    val enabled: Boolean,
+    val includeSubdomains: Boolean,
+    val preload: Boolean,
+    val maxAgeInSeconds: Duration,
+    val customDirectives: Map<String, String?>
+)

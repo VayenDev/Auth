@@ -1,5 +1,5 @@
 /*
- * Vayen Auth (Vayen_Auth): settings.gradle.kts
+ * Vayen Auth (Vayen_Auth.main): CORSConfig.kt
  * Copyright (C) 2025 mtctx
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,11 +15,15 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-rootProject.name = "Vayen Auth"
+package dev.vayen.config.security
 
-dependencyResolutionManagement {
-    repositories {
-        mavenCentral()
-        maven("https://packages.confluent.io/maven/")
-    }
-}
+import dev.vayen.config.serializer.SerializableHttpMethod
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class CORSConfig(
+    val allowedOrigins: List<String>,
+    val allowedMethods: List<SerializableHttpMethod>,
+    val allowedHeaders: List<String>,
+    val allowedHeadersPrefixed: List<String>,
+)

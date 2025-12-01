@@ -7,7 +7,7 @@
  * by the Free Software Foundation, either **version 3** of the License, or
  * (at your option) any later version.
  *
- * *This program is distributed WITHOUT ANY WARRANTY;** see the
+ * This program is distributed WITHOUT ANY WARRANTY; see the
  * GNU General Public License for more details, which you should have
  * received with this program.
  *
@@ -17,17 +17,24 @@
 
 package dev.vayen.service
 
+import com.mayakapps.kache.ObjectKache
+import dev.vayen.config.Config
 import kotlinx.coroutines.Dispatchers
+import mtctx.lumina.v4.Lumina
 import mtctx.utilities.Outcome
+import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.Transaction
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 
-abstract class DatabaseService<ID : Any, T : Any> {
+abstract class DatabaseService<ID : Any, T : Any>(
+    protected val config: Config,
+    protected val lumina: Lumina,
+    protected val database: Database,
+    val cache: ObjectKache<ID, T>,
+) {
     abstract suspend operator fun get(id: ID): Outcome<T>
     abstract suspend fun delete(id: ID): Outcome<Unit>
 
     suspend fun <T> dbQuery(block: suspend Transaction.() -> T): T =
         newSuspendedTransaction(Dispatchers.IO) { block() }
-
-    interface ObjectDSL
 }

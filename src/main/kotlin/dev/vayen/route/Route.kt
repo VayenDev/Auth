@@ -1,5 +1,5 @@
 /*
- * Vayen Auth (Vayen_Auth): settings.gradle.kts
+ * Vayen Auth (Vayen_Auth.main): Route.kt
  * Copyright (C) 2025 mtctx
  *
  * This program is free software: you can redistribute it and/or modify
@@ -15,11 +15,15 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-rootProject.name = "Vayen Auth"
+package dev.vayen.route
 
-dependencyResolutionManagement {
-    repositories {
-        mavenCentral()
-        maven("https://packages.confluent.io/maven/")
-    }
+import dev.vayen.data.Session
+import io.ktor.http.*
+import io.ktor.server.application.*
+import io.ktor.server.response.*
+import io.ktor.server.sessions.*
+
+suspend fun ApplicationCall.getAndCheckSession(): Session? = sessions.get<Session>() ?: run {
+    respond<Body.ErrorResponse>(HttpStatusCode.Unauthorized, Body.ErrorResponse("Session not found in cookies!"))
+    null
 }
